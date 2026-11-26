@@ -1,98 +1,66 @@
-"""FastMCP entrypoint: registers all 7 China-sourcing tools.
+"""FastMCP entrypoint: SEC EDGAR public-filings pull toolset.
 
 Run:  python main.py            (stdio MCP server)
-Test: pytest tests/ -q          (offline, mocks data sources)
+Test: pytest tests/ -q          (offline, mocks SEC endpoints)
 
-Compliance-first: no supplier details persisted; public sources on,
-enterprise 1688/国际站 API off by default (needs 企业资质).
-
-Buyer-facing copy is EN by default; every tool accepts `locale` to switch
-(de/fr/es/ja/ko). For tariff/shipping, `destination` country also auto-selects.
+Data policy: read-only SEC EDGAR public API only — no credentials, no paid
+vendors, nothing fabricated. Every row carries its live EDGAR source URL.
 """
 from fastmcp import FastMCP
 
-from src.config import get_config
-from src.tools.find_factory import find_factory as _find_factory
-from src.tools.price_compare import price_compare as _price_compare
-from src.tools.moq_check import moq_check as _moq_check
-from src.tools.supplier_verify import supplier_verify as _supplier_verify
-from src.tools.shipping_quote import shipping_quote as _shipping_quote
-from src.tools.duty_calc import duty_calc as _duty_calc
-from src.tools.trend_hot import trend_hot as _trend_hot
+from src.tools.insider_sales import insider_sales as _insider_sales
+from src.tools.insider_clusters import insider_clusters as _insider_clusters
+from src.tools.new_insiders import new_insiders as _new_insiders
+from src.tools.ownership_13dg import ownership_13dg as _ownership_13dg
+from src.tools.reporting_calendar import reporting_calendar as _reporting_calendar
 
-mcp = FastMCP("china-sourcing-map")
+mcp = FastMCP("sec-filings-pull")
 
 
 @mcp.tool()
-def find_factory(category: str, region: str | None = None, limit: int = 10,
-                 locale: str | None = None) -> dict:
-    """Find factories/suppliers for a category in a CN region (public fields only).
+def insider_sales(ticker_or_cik: str, days: int = 30, limit: int = 200) -> dict:
+    """Open-market insider sales (Form 4 code S) for one issuer, with EDGAR source links.
 
-    category: e.g. "stainless steel bottle". region: e.g. "Yiwu", "Guangdong".
-    locale: buyer-facing copy language (default en; de/fr/es/ja/ko).
+    ticker_or_cik: "AAPL" or "0000320193". days: look-back window (default 30).
     """
-    return _find_factory(category, region, limit, locale)
+    return _insider_sales(ticker_or_cik, days, limit)
 
 
 @mcp.tool()
-def price_compare(category: str, limit: int = 10, locale: str | None = None) -> dict:
-    """Compare prices across suppliers for the same category.
+def insider_clusters(tickers: list | None = None, days: int = 30,
+                     min_sellers: int = 3) -> dict:
+    """Rank issuers by distinct insider sellers in the window (Form 4 code S).
 
-    locale: buyer-facing copy language (default en; de/fr/es/ja/ko).
+    tickers: watchlist to scan (default: 15 large caps). min_sellers: cluster
+    threshold (default 3). Empty results are reported as-is, never padded.
     """
-    return _price_compare(category, limit, locale)
+    return _insider_clusters(tickers, days, min_sellers)
 
 
 @mcp.tool()
-def moq_check(offer_id: str, locale: str | None = None) -> dict:
-    """MOQ / lead time / freight for a public 1688/Alibaba.com offer.
-
-    offer_id: public listing id or URL. locale: default en; de/fr/es/ja/ko.
-    """
-    return _moq_check(offer_id, locale)
+def new_insiders(tickers: list, days: int = 30) -> dict:
+    """Form 3 initial-ownership filings — who just became an insider (opening stake)."""
+    return _new_insiders(tickers, days)
 
 
 @mcp.tool()
-def supplier_verify(company: str, region: str | None = None,
-                    locale: str | None = None) -> dict:
-    """Verify a supplier via public credit + customs + trade-feedback signals.
-
-    Read-only, no private data stored. locale: default en; de/fr/es/ja/ko.
-    """
-    return _supplier_verify(company, region, locale)
+def ownership_13dg(ticker_or_cik: str, days: int = 365) -> dict:
+    """Schedule 13D/13G (+amendments) beneficial-ownership filings with source links."""
+    return _ownership_13dg(ticker_or_cik, days)
 
 
 @mcp.tool()
-def shipping_quote(origin: str = "CN", destination: str = "US", mode: str = "sea",
-                   weight_kg: float = 100.0, locale: str | None = None) -> dict:
-    """Shipping quote: sea/air/express (live quote needs a logistics API key).
+def reporting_calendar(tickers: list, days: int = 30) -> dict:
+    """Periodic-report filing dates (10-Q/10-K/8-K...) from SEC EDGAR.
 
-    `destination` country auto-selects buyer copy language if `locale` is omitted.
+    Filing dates only — sell-side EPS consensus is not public data and is not included.
     """
-    return _shipping_quote(origin, destination, mode, weight_kg, locale)
+    return _reporting_calendar(tickers, days)
 
 
-@mcp.tool()
-def duty_calc(hs_code: str, origin: str = "CN", destination: str = "US",
-              locale: str | None = None) -> dict:
-    """Estimate duty/tariff for an HS code (live for US via USITC HTS).
-
-    Planning only. `destination` country auto-selects copy language if `locale` omitted.
-    """
-    return _duty_calc(hs_code, origin, destination, locale)
-
-
-@mcp.tool()
-def trend_hot(category: str | None = None, limit: int = 10,
-              locale: str | None = None) -> dict:
-    """Overseas hot-selling category trend signal (public).
-
-    locale: buyer-facing copy language (default en; de/fr/es/ja/ko).
-    """
-    return _trend_hot(category, limit, locale)
+def main():
+    mcp.run()
 
 
 if __name__ == "__main__":
-    # confirm the config shape at startup so misconfig fails loud
-    _ = get_config()
-    mcp.run()
+    main()
