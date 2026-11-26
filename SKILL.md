@@ -1,79 +1,38 @@
 ---
-name: china-sourcing-map
-description: China supply-chain sourcing MCP — find factories, compare prices, check MOQ, verify suppliers, get shipping/duty estimates, and track hot categories. Compliance-first: public sources only by default, no supplier details persisted.
-version: 0.1.0
-entrypoint: main.py
-runtime: python>=3.11
+name: mcp-sec-filings-pull
+description: SEC EDGAR public filings pull — insider sales (Form 4), insider-cluster ranking, new insiders (Form 3), 13D/13G ownership, reporting calendar. Use when asked about insider selling, beneficial ownership, filing dates, or US public-company filings data.
 ---
 
-# China Sourcing Map (MCP)
+# mcp-sec-filings-pull
 
-Give your AI agent one tool to plan a China sourcing move end to end:
-**find factory → price compare → MOQ → verify supplier → shipping quote →
-duty estimate → hot-category trend.**
+Read-only SEC EDGAR public-API toolset. Every deliverable row carries its live
+EDGAR source URL; nothing is fabricated; empty results are reported as empty.
 
-## Why this exists
-Chinese supply chain is strong but opaque to overseas buyers. This MCP
-packages the public, low-risk data sources into one agent-friendly tool set,
-with a clean "degraded" marker instead of invented data when a live source
-isn't configured.
+## Tools
 
-## Tools (7)
-| Tool | Purpose | Live data requires |
-|---|---|---|
-| `find_factory` | factories/suppliers for a category+region | 1688/国际站 public or API |
-| `price_compare` | multi-supplier price for same category | public listings / BigGo |
-| `moq_check` | MOQ / lead time / freight for an offer | public display fields |
-| `supplier_verify` | credit + customs + trade-feedback signals | public 信用公示 |
-| `shipping_quote` | sea/air/express quote | logistics API key |
-| `duty_calc` | duty/tariff by HS code | USITC HTS API (free, US lines) |
-| `trend_hot` | overseas hot-category signal | 国际站 public trend |
+- `insider_sales(ticker_or_cik, days=30, limit=200)` — Form 4 code S rows for
+  one issuer: owner, date, shares, price, EDGAR source. Ranked by value.
+- `insider_clusters(tickers=None, days=30, min_sellers=3)` — scan a watchlist
+  (default 15 large caps), rank issuers by distinct sellers in the window.
+- `new_insiders(tickers, days=30)` — Form 3 filings (opening stakes).
+- `ownership_13dg(ticker_or_cik, days=365)` — 13D/13G + amendments.
+- `reporting_calendar(tickers, days=30)` — 10-Q/10-K/8-K/20-F filing dates.
+  Filing dates only — no EPS consensus (not public data).
 
-Every tool returns a standard envelope: `{data, source, dataQuality, disclaimer, locale}`.
-`dataQuality=degraded` means "no live source configured — here's guidance,
-not a fabricated answer."
+## Response envelope
 
-## Output language (`locale`)
-Buyer-facing copy defaults to **English**. Every tool accepts `locale`
-(`en`/`de`/`fr`/`es`/`ja`/`ko`) to switch the disclaimer + guidance text.
-For `duty_calc` / `shipping_quote`, if `locale` is omitted the `destination`
-country auto-selects the language (e.g. `destination="DE"` → German copy,
-`destination="JP"` → Japanese). Untranslated locales fall back to English —
-we never emit half-localised text. Data fields keep their source language.
+`data` / `source` ("sec_edgar" | "degraded") / `dataQuality` / `disclaimer`
+/ `asOf`. On lookup failure the tool degrades with an `error` note instead of
+raising.
 
-Example: `duty_calc(hs_code="8471.30", origin="CN", destination="DE")`
-returns the tariff note in German with `"locale": "de"`.
+## Example
 
-## Run
-```bash
-pip install -r requirements.txt
-python main.py          # stdio MCP server
-pytest tests/ -q       # offline, mocks data sources
+```
+insider_sales("AAPL", days=30)
+→ data.sales: [{owner, txnDate, shares, price, source: "https://www.sec.gov/Archives/..."}]
 ```
 
-## MCP client config (example, Claude Desktop / Cursor)
-```json
-{
-  "mcpServers": {
-    "china-sourcing-map": {
-      "command": "python",
-      "args": ["main.py"],
-      "cwd": "/path/to/mcp-china-sourcing-map"
-    }
-  }
-}
-```
+## Tests
 
-## Enterprise enhancement (optional, needs 企业资质)
-- `cfg.alibaba_1688_api = True` → authoritative 1688 product/supplier
-- `cfg.alibaba_intl_api = True` → 阿里国际站 cross-border products
-- `cfg.biggo = True` → BigGo-MCP (MIT) cross-platform price + history
-- logistics API key → live shipping quotes
-
-## Compliance notes (read before selling)
-- Publicly displayed supplier fields only; **no off-platform or private data stored**.
-- Tariff output is a planning estimate — buyers must confirm with a licensed
-  customs broker.
-- 1688/阿里/顺丰/递四方/燕文 open APIs require **enterprise credentials**; the
-  public fallback is intentional so the server works with zero keys.
-- Always surface the `disclaimer` field to end users.
+`pytest tests/ -q` — offline; parses a real-shaped Form 4 XML and checks the
+code-S filter, cluster ranking, and empty-result honesty.
