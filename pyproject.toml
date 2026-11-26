@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-china-sourcing-map"
+version = "0.1.0"
+description = "MCP: China supply-chain sourcing tool set — find factory / price compare / MOQ / verify supplier / shipping quote / duty calc / hot-category trend. Compliance-first: public sources only, no supplier details persisted."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "mcp-china-sourcing-map" }]
+dependencies = [
+    "fastmcp>=2.0",
+    "requests>=2.31",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+mcp-china-sourcing-map = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = ["src", "src.tools", "src.sources"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
