@@ -1,5 +1,7 @@
 # mcp-sec-filings-pull
 
+[![mcp-sec-filings-pull MCP server](https://glama.ai/mcp/servers/newken2010/mcp-sec-filings-pull/badges/score.svg)](https://glama.ai/mcp/servers/newken2010/mcp-sec-filings-pull)
+
 MCP toolset for **SEC EDGAR public filings** — insider trading, beneficial
 ownership, and reporting calendars. Read-only, public API only: no credentials,
 no paid data vendors, nothing fabricated. Every row carries its live EDGAR
